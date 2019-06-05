@@ -404,6 +404,11 @@ private:
 
     char *section;
 
+    //*DTN: set up counters for branches
+    typedef unsigned long long HistoryType;
+    std::map<HistoryType, int> correct;
+    std::map<HistoryType, int> incorrect;
+
 protected:
 public:
     BPredictor(int32_t i, int32_t fetchWidth, const char *section, BPredictor *bpred=0);
