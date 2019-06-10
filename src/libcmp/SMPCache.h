@@ -94,6 +94,9 @@ protected:
     GStatsCntr lineFill;
     GStatsCntr readRetry;
     GStatsCntr writeRetry;
+    GStatsCntr compMiss; //*DTN: occurs in infinite-sized cache
+    GStatsCntr capMiss; //*DTN: occurs in fully assoc LRU cache that has same block size and capacity
+    GStatsCntr confMiss; //*DTN: neither compulsory or capacity miss
 
     GStatsCntr invalDirty;
     GStatsCntr allocDirty;

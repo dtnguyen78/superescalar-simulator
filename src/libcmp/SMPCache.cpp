@@ -95,6 +95,9 @@ SMPCache::SMPCache(SMemorySystem *dms, const char *section, const char *name)
     , writeRetry("%s:writeRetry", name)
     , invalDirty("%s:invalDirty", name)
     , allocDirty("%s:allocDirty", name)
+    , compMiss("%s:compMiss", name) //*DTN: compulsory miss
+    , capMiss("%s:capMiss", name) // *DTN: capacity miss
+    , confMiss("%s:confMiss", name) // *DTN: conflict miss
 {
     MemObj *lowerLevel = NULL;
     //printf("%d\n", dms->getPID());
