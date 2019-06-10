@@ -31,7 +31,8 @@ Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #include "Snippets.h"
 #include "GStats.h"
 
-enum    ReplacementPolicy  {LRU, RANDOM};
+//enum    ReplacementPolicy  {LRU, RANDOM};
+enum ReplacementPolicy {LRU, RANDOM, NXLRU}; // *DTN: include NXLRU policy
 
 #ifdef SESC_ENERGY
 template<class State, class Addr_t = uint32_t, bool Energy=true>
