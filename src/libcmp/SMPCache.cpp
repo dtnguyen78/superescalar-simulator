@@ -80,6 +80,8 @@ const char* SMPCache::cohOutfile = NULL;
 unsigned SMPCache::cacheID = 0;
 #endif
 
+std::vector<PAddr> compulsory; // *DTN: cold cache tracking
+
 SMPCache::SMPCache(SMemorySystem *dms, const char *section, const char *name)
     : MemObj(section, name)
     , readHit("%s:readHit", name)
@@ -469,6 +471,16 @@ void SMPCache::doRead(MemRequest *mreq)
 
     readMiss.inc();
 
+    PAddr tag = calcTag(addr); // *DTN: get tag of current address
+    int isComp = std::count(compulsory.begin(), compulsory.end(), tag);
+
+    // *DTN: if tag has never been in the cache before, it's a compulsory miss
+    if (!isComp)
+    {
+	    compMiss.inc();
+	    compulsory.push_back(tag);
+    }
+
 #if (defined TRACK_MPKI)
     DInst *dinst = mreq->getDInst();
     if(dinst) {
@@ -579,6 +591,16 @@ void SMPCache::doWrite(MemRequest *mreq)
     }
 
     writeMiss.inc();
+
+    PAddr tag = calcTag(addr); // *DTN: get tag of current address
+    int isComp = std::count(compulsory.begin(), compulsory.end(), tag);
+
+    // *DTN: if tag has never been in the cache before, it's a compulsory miss
+    if (!isComp)
+    {
+	    compMiss.inc();
+	    compulsory.push_back(tag);
+    }
 
 #ifdef SESC_ENERGY
     wrEnergy[1]->inc();
