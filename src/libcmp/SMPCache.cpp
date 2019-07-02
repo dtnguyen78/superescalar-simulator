@@ -81,6 +81,8 @@ unsigned SMPCache::cacheID = 0;
 #endif
 
 std::vector<PAddr> compulsory; // *DTN: cold cache tracking
+//int nLines; // *DTN: number of lines defined in config
+std::map<PAddr, PAddr> cacheMap; // *DTN: track previous LRU line
 
 SMPCache::SMPCache(SMemorySystem *dms, const char *section, const char *name)
     : MemObj(section, name)
@@ -434,9 +436,48 @@ void SMPCache::read(MemRequest *mreq)
     doReadCB::scheduleAbs(nextSlot(), this, mreq);
 }
 
+// *DTN: helper function to count different cache miss types
+void SMPCache::calculateMissMetrics(PAddr tag)
+{
+	if (std::count(compulsory.begin(), compulsory.end(), tag) == 0)
+	{
+		compMiss.inc();
+		compulsory.push_back(tag);
+	}
+	else
+	{
+		if (cacheMap.find(tag) != cacheMap.end())
+			confMiss.inc();
+		else
+			capMiss.inc();
+	}
+
+	// Emulate an LRU cache
+	if (cacheMap.find(tag) == cacheMap.end()) // cache miss
+	{
+		// check if set is already full
+		//if (LRU_order.size() == nLines)
+		if (LRU_order.size() == cache->getNumLines())
+		{
+			// evict LRU line
+			cacheMap.erase(LRU_order.front());
+			LRU_order.erase(LRU_order.begin());
+		}
+	}
+	else // cache hit
+	{
+		// update position to be recently accessed
+		LRU_order.erase(std::find(LRU_order.begin(), LRU_order.end(), tag));
+	}
+
+	LRU_order.push_back(tag);
+	cacheMap[tag] = LRU_order.front();
+}
+
 void SMPCache::doRead(MemRequest *mreq)
 {
     PAddr addr = mreq->getPAddr();
+    PAddr tag = calcTag(addr);
     Line *l = cache->readLine(addr);
 
     if(!((l && l->canBeRead()))) {
@@ -454,6 +495,26 @@ void SMPCache::doRead(MemRequest *mreq)
 #endif
         outsReq->retire(addr);
         mreq->goUp(hitDelay);
+	// Emulate an LRU cache
+	if (cacheMap.find(tag) == cacheMap.end()) // cache miss
+	{
+		// check if set is already full
+		//if (LRU_order.size() == nLines)
+		if (LRU_order.size() == cache->getNumLines())
+		{
+			// evict LRU line
+			cacheMap.erase(LRU_order.front());
+			LRU_order.erase(LRU_order.begin());
+		}
+	}
+	else // cache hit
+	{
+		// update position to be recently accessed
+		LRU_order.erase(std::find(LRU_order.begin(), LRU_order.end(), tag));
+	}
+
+	LRU_order.push_back(tag);
+	cacheMap[tag] = LRU_order.front();
         return;
     }
 
@@ -471,15 +532,7 @@ void SMPCache::doRead(MemRequest *mreq)
 
     readMiss.inc();
 
-    PAddr tag = calcTag(addr); // *DTN: get tag of current address
-    int isComp = std::count(compulsory.begin(), compulsory.end(), tag);
-
-    // *DTN: if tag has never been in the cache before, it's a compulsory miss
-    if (!isComp)
-    {
-	    compMiss.inc();
-	    compulsory.push_back(tag);
-    }
+    calculateMissMetrics(tag);
 
 #if (defined TRACK_MPKI)
     DInst *dinst = mreq->getDInst();
@@ -548,6 +601,7 @@ void SMPCache::doWriteAgain(MemRequest *mreq) {
 void SMPCache::doWrite(MemRequest *mreq)
 {
     PAddr addr = mreq->getPAddr();
+    PAddr tag = calcTag(addr);
     Line *l = cache->writeLine(addr);
 
     if(!(l && l->canBeWritten())) {
@@ -563,6 +617,26 @@ void SMPCache::doWrite(MemRequest *mreq)
         protocol->makeDirty(l);
         outsReq->retire(addr);
         mreq->goUp(hitDelay);
+	// Emulate an LRU cache
+	if (cacheMap.find(tag) == cacheMap.end()) // cache miss
+	{
+		// check if set is already full
+//		if (LRU_order.size() == nLines)
+		if (LRU_order.size() == cache->getNumLines())
+		{
+			// evict LRU line
+			cacheMap.erase(LRU_order.front());
+			LRU_order.erase(LRU_order.begin());
+		}
+	}
+	else // cache hit
+	{
+		// update position to be recently accessed
+		LRU_order.erase(std::find(LRU_order.begin(), LRU_order.end(), tag));
+	}
+
+	LRU_order.push_back(tag);
+	cacheMap[tag] = LRU_order.front();
         return;
     }
 
@@ -592,15 +666,7 @@ void SMPCache::doWrite(MemRequest *mreq)
 
     writeMiss.inc();
 
-    PAddr tag = calcTag(addr); // *DTN: get tag of current address
-    int isComp = std::count(compulsory.begin(), compulsory.end(), tag);
-
-    // *DTN: if tag has never been in the cache before, it's a compulsory miss
-    if (!isComp)
-    {
-	    compMiss.inc();
-	    compulsory.push_back(tag);
-    }
+    calculateMissMetrics(tag);
 
 #ifdef SESC_ENERGY
     wrEnergy[1]->inc();

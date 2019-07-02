@@ -268,6 +268,11 @@ public:
         return cache->calcTag(addr);
     }
 
+    uint32_t calcSet4Addr(PAddr addr) {
+	    return cache->calcSet4Addr(addr);
+    }
+
+
     // END protocol interface
 
     // debug function
