@@ -99,9 +99,16 @@ SMPCache::SMPCache(SMemorySystem *dms, const char *section, const char *name)
     , writeRetry("%s:writeRetry", name)
     , invalDirty("%s:invalDirty", name)
     , allocDirty("%s:allocDirty", name)
-    , compMiss("%s:compMiss", name) //*DTN: compulsory miss
-    , capMiss("%s:capMiss", name) // *DTN: capacity miss
-    , confMiss("%s:confMiss", name) // *DTN: conflict miss
+    //, compMiss("%s:compMiss", name) //*DTN: compulsory miss
+    //, capMiss("%s:capMiss", name) // *DTN: capacity miss
+    //, confMiss("%s:confMiss", name) // *DTN: conflict miss
+    // *DTN: added following counters for read and write miss types
+    , readCompMiss("%s:readCompMiss", name)
+    , readReplMiss("%s:readReplMiss", name)
+    , readCoheMiss("%s:readCoheMiss", name)
+    , writeCompMiss("%s:writeCompMiss", name)
+    , writeReplMiss("%s:writeReplMiss", name)
+    , writeCoheMiss("%s:writeCoheMiss", name)
 {
     MemObj *lowerLevel = NULL;
     //printf("%d\n", dms->getPID());
@@ -436,48 +443,70 @@ void SMPCache::read(MemRequest *mreq)
     doReadCB::scheduleAbs(nextSlot(), this, mreq);
 }
 
-// *DTN: helper function to count different cache miss types
-void SMPCache::calculateMissMetrics(PAddr tag)
+// *DTN: Helper function for calculating different types of misses
+void SMPCache::calculateMissMetrics(PAddr addr, MemOperation mem_op, Line *l)
 {
-	if (std::count(compulsory.begin(), compulsory.end(), tag) == 0)
+	PAddr tag = calcTag(addr);
+	uint32_t setId = cache->calcSet4Tag(tag);
+	uint32_t numLinesPerSet = cache->getNumLines() / cache->getNumSets();
+	uint32_t index4set = cache->calcIndex4Set(setId);
+	uint32_t counter = 0;
+	bool prevTagIsInvalid = false;
+
+	// Calculate coherence misses due to invalidation.
+	// Check only the lines in the set to find any invalid lines
+	// and if the given tag matches the line's previous tag.
+	// Use this for both read and write coherence misses.
+	while (counter < numLinesPerSet)
 	{
-		compMiss.inc();
-		compulsory.push_back(tag);
-	}
-	else
-	{
-		if (cacheMap.find(tag) != cacheMap.end())
-			confMiss.inc();
-		else
-			capMiss.inc();
+		Line *l = cache->getPLine(index4set);
+		if (l && !l->isValid() && (l->getPreviousTag() == tag))
+			prevTagIsInvalid = true;
+		counter++;
+		index4set++;
 	}
 
-	// Emulate an LRU cache
-	if (cacheMap.find(tag) == cacheMap.end()) // cache miss
+	// Count read and write coherence misses slightly differently
+	if (mem_op == MemRead)
 	{
-		// check if set is already full
-		//if (LRU_order.size() == nLines)
-		if (LRU_order.size() == cache->getNumLines())
+		if (std::find(compulsory.begin(), compulsory.end(), tag) == compulsory.end())
 		{
-			// evict LRU line
-			cacheMap.erase(LRU_order.front());
-			LRU_order.erase(LRU_order.begin());
+			readCompMiss.inc();
+			compulsory.push_back(tag);
+		}
+		else if (prevTagIsInvalid)
+		{
+			readCoheMiss.inc();
+		}
+		else
+		{
+			readReplMiss.inc();
 		}
 	}
-	else // cache hit
+	else if (mem_op == MemWrite)
 	{
-		// update position to be recently accessed
-		LRU_order.erase(std::find(LRU_order.begin(), LRU_order.end(), tag));
+		if (std::find(compulsory.begin(), compulsory.end(), tag) == compulsory.end())
+		{
+			writeCompMiss.inc();
+			compulsory.push_back(tag);
+		}
+		else if ((l && l->getState() == DMESI_SHARED) || prevTagIsInvalid)
+		{
+			// If line is shared, it can also cause a coherence miss because
+			// it results in a write delay.
+			// FIXME: do we need to care about the state at all at this point?
+			writeCoheMiss.inc();
+		}
+		else
+		{
+			writeReplMiss.inc();
+		}
 	}
-
-	LRU_order.push_back(tag);
-	cacheMap[tag] = LRU_order.front();
 }
 
 void SMPCache::doRead(MemRequest *mreq)
 {
     PAddr addr = mreq->getPAddr();
-    PAddr tag = calcTag(addr);
     Line *l = cache->readLine(addr);
 
     if(!((l && l->canBeRead()))) {
@@ -495,26 +524,6 @@ void SMPCache::doRead(MemRequest *mreq)
 #endif
         outsReq->retire(addr);
         mreq->goUp(hitDelay);
-	// Emulate an LRU cache
-	if (cacheMap.find(tag) == cacheMap.end()) // cache miss
-	{
-		// check if set is already full
-		//if (LRU_order.size() == nLines)
-		if (LRU_order.size() == cache->getNumLines())
-		{
-			// evict LRU line
-			cacheMap.erase(LRU_order.front());
-			LRU_order.erase(LRU_order.begin());
-		}
-	}
-	else // cache hit
-	{
-		// update position to be recently accessed
-		LRU_order.erase(std::find(LRU_order.begin(), LRU_order.end(), tag));
-	}
-
-	LRU_order.push_back(tag);
-	cacheMap[tag] = LRU_order.front();
         return;
     }
 
@@ -532,7 +541,7 @@ void SMPCache::doRead(MemRequest *mreq)
 
     readMiss.inc();
 
-    calculateMissMetrics(tag);
+    calculateMissMetrics(addr, MemRead, l);
 
 #if (defined TRACK_MPKI)
     DInst *dinst = mreq->getDInst();
@@ -617,26 +626,6 @@ void SMPCache::doWrite(MemRequest *mreq)
         protocol->makeDirty(l);
         outsReq->retire(addr);
         mreq->goUp(hitDelay);
-	// Emulate an LRU cache
-	if (cacheMap.find(tag) == cacheMap.end()) // cache miss
-	{
-		// check if set is already full
-//		if (LRU_order.size() == nLines)
-		if (LRU_order.size() == cache->getNumLines())
-		{
-			// evict LRU line
-			cacheMap.erase(LRU_order.front());
-			LRU_order.erase(LRU_order.begin());
-		}
-	}
-	else // cache hit
-	{
-		// update position to be recently accessed
-		LRU_order.erase(std::find(LRU_order.begin(), LRU_order.end(), tag));
-	}
-
-	LRU_order.push_back(tag);
-	cacheMap[tag] = LRU_order.front();
         return;
     }
 
@@ -666,7 +655,7 @@ void SMPCache::doWrite(MemRequest *mreq)
 
     writeMiss.inc();
 
-    calculateMissMetrics(tag);
+    calculateMissMetrics(addr, MemWrite, l);
 
 #ifdef SESC_ENERGY
     wrEnergy[1]->inc();

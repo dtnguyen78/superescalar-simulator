@@ -51,6 +51,7 @@ private:
     //void resolveSituation(SMPMemRequest *sreq);
 protected:
 
+    std::vector<PAddr> compulsory; // cold cache tracking
 
     CacheType *cache;
 
@@ -94,9 +95,17 @@ protected:
     GStatsCntr lineFill;
     GStatsCntr readRetry;
     GStatsCntr writeRetry;
-    GStatsCntr compMiss; //*DTN: occurs in infinite-sized cache
-    GStatsCntr capMiss; //*DTN: occurs in fully assoc LRU cache that has same block size and capacity
-    GStatsCntr confMiss; //*DTN: neither compulsory or capacity miss
+    //GStatsCntr compMiss; //*DTN: occurs in infinite-sized cache
+    //GStatsCntr capMiss; //*DTN: occurs in fully assoc LRU cache that has same block size and capacity
+    //GStatsCntr confMiss; //*DTN: neither compulsory or capacity miss
+    
+    /* *DTN: more granular tracking for read and write misses */
+    GStatsCntr readCompMiss;
+    GStatsCntr readReplMiss;
+    GStatsCntr readCoheMiss;
+    GStatsCntr writeCompMiss;
+    GStatsCntr writeReplMiss;
+    GStatsCntr writeCoheMiss;
 
     GStatsCntr invalDirty;
     GStatsCntr allocDirty;
@@ -132,6 +141,9 @@ protected:
 
     // local routines
     void doRead(MemRequest *mreq);
+    bool prevTagIsInvalid(PAddr tag); // *DTN: see if previous tag in cache line was invalidated
+    void calculateMissMetrics(PAddr addr, MemOperation op, Line *l); // *DTN: count miss types
+
     // JJO
     void doReadRemote(MemRequest *mreq);
     void doWrite(MemRequest *mreq);
