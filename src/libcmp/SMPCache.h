@@ -100,12 +100,17 @@ protected:
     //GStatsCntr confMiss; //*DTN: neither compulsory or capacity miss
     
     /* *DTN: more granular tracking for read and write misses */
-    GStatsCntr readCompMiss;
-    GStatsCntr readReplMiss;
-    GStatsCntr readCoheMiss;
-    GStatsCntr writeCompMiss;
-    GStatsCntr writeReplMiss;
-    GStatsCntr writeCoheMiss;
+    //GStatsCntr readCompMiss;
+    //GStatsCntr readReplMiss;
+    //GStatsCntr readCoheMiss;
+    //GStatsCntr writeCompMiss;
+    //GStatsCntr writeReplMiss;
+    //GStatsCntr writeCoheMiss;
+    
+    // *DTN: do high-level summary instead of tracking reads and write separately
+    GStatsCntr compMiss;
+    GStatsCntr replMiss;
+    GStatsCntr coheMiss;
 
     GStatsCntr invalDirty;
     GStatsCntr allocDirty;

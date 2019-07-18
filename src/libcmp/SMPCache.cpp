@@ -99,16 +99,20 @@ SMPCache::SMPCache(SMemorySystem *dms, const char *section, const char *name)
     , writeRetry("%s:writeRetry", name)
     , invalDirty("%s:invalDirty", name)
     , allocDirty("%s:allocDirty", name)
-    //, compMiss("%s:compMiss", name) //*DTN: compulsory miss
+    , compMiss("%s:compulsory miss", name) //*DTN: compulsory miss
+    , replMiss("%s:replacement miss", name) // *DTN: replacement miss - includes capacity and conflict misses
+    , coheMiss("%s:coherence miss", name) // *DTN: coherence miss
+
     //, capMiss("%s:capMiss", name) // *DTN: capacity miss
     //, confMiss("%s:confMiss", name) // *DTN: conflict miss
+
     // *DTN: added following counters for read and write miss types
-    , readCompMiss("%s:readCompMiss", name)
-    , readReplMiss("%s:readReplMiss", name)
-    , readCoheMiss("%s:readCoheMiss", name)
-    , writeCompMiss("%s:writeCompMiss", name)
-    , writeReplMiss("%s:writeReplMiss", name)
-    , writeCoheMiss("%s:writeCoheMiss", name)
+    //, readCompMiss("%s:readCompMiss", name)
+    //, readReplMiss("%s:readReplMiss", name)
+    //, readCoheMiss("%s:readCoheMiss", name)
+    //, writeCompMiss("%s:writeCompMiss", name)
+    //, writeReplMiss("%s:writeReplMiss", name)
+    //, writeCoheMiss("%s:writeCoheMiss", name)
 {
     MemObj *lowerLevel = NULL;
     //printf("%d\n", dms->getPID());
@@ -466,41 +470,21 @@ void SMPCache::calculateMissMetrics(PAddr addr, MemOperation mem_op, Line *l)
 		index4set++;
 	}
 
-	// Count read and write coherence misses slightly differently
-	if (mem_op == MemRead)
+	if (std::find(compulsory.begin(), compulsory.end(), tag) == compulsory.end())
 	{
-		if (std::find(compulsory.begin(), compulsory.end(), tag) == compulsory.end())
-		{
-			readCompMiss.inc();
-			compulsory.push_back(tag);
-		}
-		else if (prevTagIsInvalid)
-		{
-			readCoheMiss.inc();
-		}
-		else
-		{
-			readReplMiss.inc();
-		}
+		compMiss.inc();
+		compulsory.push_back(tag);
 	}
-	else if (mem_op == MemWrite)
+	else if ((l && l->getState() == DMESI_SHARED) || prevTagIsInvalid)
 	{
-		if (std::find(compulsory.begin(), compulsory.end(), tag) == compulsory.end())
-		{
-			writeCompMiss.inc();
-			compulsory.push_back(tag);
-		}
-		else if ((l && l->getState() == DMESI_SHARED) || prevTagIsInvalid)
-		{
-			// If line is shared, it can also cause a coherence miss because
-			// it results in a write delay.
-			// FIXME: do we need to care about the state at all at this point?
-			writeCoheMiss.inc();
-		}
-		else
-		{
-			writeReplMiss.inc();
-		}
+		// If line is shared, it can also cause a coherence miss because
+		// it results in a write delay.
+		// FIXME: do we need to care about the state at all at this point?
+		coheMiss.inc();
+	}
+	else
+	{
+		replMiss.inc();
 	}
 }
 
