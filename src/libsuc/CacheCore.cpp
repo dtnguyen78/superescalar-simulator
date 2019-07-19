@@ -324,35 +324,11 @@ typename CacheAssoc<State, Addr_t, Energy>::Line
     Line **lineHit=0;
     Line **lineFree=0; // Order of preference, invalid, locked
     Line **setEnd = theSet + assoc;
-    Line** line1 = 0; // *DTN: first line for NXLRU
-    Line** line2 = 0; // *DTN: second line for NXLRU
 
     // Start in reverse order so that get the youngest invalid possible,
     // and the oldest isLocked possible (lineFree)
     {
         Line **l = setEnd -1;
-	if (policy == NXLRU) // *DTN: implement NXLRU policy
-        {
-            // *DTN: create a separate while loop to avoid stalling during cache access.
-            while(l >= theSet) {
-                if ((*l)->getTag() == tag) {
-                    lineHit = l;
-                    break;
-                }
-                if (!(*l)->isValid())
-                    lineFree = l;
-                //else if (lineFree == 0 && !(*l)->isLocked()) lineFree = l;
-                else if (line1 == 0 && !(*l)->isLocked())
-                    line1 = l; // *DTN: if only 1 non-locked line exists in the set, line must be returned
-                else if (line1 != 0 && line2 == 0 && !(*l)->isLocked())
-                    line2 = l; // *DTN: if all lines are valid and locked, return second-least-recently-used line
-
-                GI(!(*l)->isValid(), !(*l)->isLocked());
-                l--;
-            }
-        }
-	else
-        {
             while(l >= theSet) {
                 if ((*l)->getTag() == tag) {
                     lineHit = l;
@@ -367,12 +343,6 @@ typename CacheAssoc<State, Addr_t, Energy>::Line
                 GI(!(*l)->isValid(), !(*l)->isLocked());
                 l--;
             }
-        }
-	if (policy == NXLRU && lineFree == 0)
-	{
-		if (line2 == 0) lineFree = line1;
-		else lineFree = line2;
-	}
     }
     GI(lineFree, !(*lineFree)->isValid() || !(*lineFree)->isLocked());
 
@@ -395,9 +365,6 @@ typename CacheAssoc<State, Addr_t, Energy>::Line
             // Get the oldest line possible
             lineFree = setEnd-1;
         }
-	else if (policy == NXLRU) { //*DTN: find second LRU line among non-locked lines
-	    lineFree = setEnd-2;
-	}
     } else if(ignoreLocked) {
         if (policy == RANDOM && (*lineFree)->isValid()) {
             lineFree = &theSet[irand];
