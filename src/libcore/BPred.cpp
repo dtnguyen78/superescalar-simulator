@@ -348,54 +348,7 @@ void BPNotTaken::switchIn(Pid_t pid)
 
 void BPNotTaken::switchOut(Pid_t pid)
 {
-	int exe1to9Hit, exe10to99Hit, exe100to999Hit, exe1000upHit;
-        exe1to9Hit = exe10to99Hit = exe100to999Hit = exe1000upHit = 0;
-
-        int exe1to9Miss, exe10to99Miss, exe100to999Miss, exe1000upMiss;
-        exe1to9Miss = exe10to99Miss = exe100to999Miss = exe1000upMiss = 0;
-
-        for (auto instID : correct)
-        {
-            int hit = instID.second;
-            int miss = incorrect[instID.first];
-            int count = hit + miss;
-
-            if (count < 10)
-            {
-                exe1to9++;
-                exe1to9Hit += hit;
-                exe1to9Miss += miss;
-            }
-            else if (count < 100)
-            {
-                exe10to99++;
-                exe10to99Hit += hit;
-                exe10to99Miss += miss;
-            }
-            else if (count < 1000)
-            {
-                exe100to999++;
-                exe100to999Hit += hit;
-                exe100to999Miss += miss;
-            }
-            else //1000+
-            {
-                exe1000andup++;
-                exe1000upHit += hit;
-                exe1000upMiss += miss;
-            }
-        }
-
-        std::cout << "1-9 completions: " << exe1to9 << "\n";
-        std::cout << "10-99 completions: " << exe10to99 << "\n";
-        std::cout << "100-999 completions: " << exe100to999 << "\n";
-        std::cout << "1000+ completions: " << exe1000andup << "\n";
-
-        std::cout << "Accuracy for 1-9: " << (float) exe1to9Hit / (float) (exe1to9Hit + exe1to9Miss) << "\n";
-        std::cout << "Accuracy for 10-99: " << (float) exe10to99Hit / (float) (exe10to99Hit + exe10to99Miss) << "\n";
-        std::cout << "Accuracy for 100-999: " << (float) exe100to999Hit / (float) (exe100to999Hit + exe100to999Miss) << "\n";
-        std::cout << "Accuracy for 1000+: " << (float) exe1000upHit / (float) (exe1000upHit + exe1000upMiss) << "\n";
-
+	//*DTN TODO: cleaner print outs of buckets for static predictions
 }
 
 /*****************************************

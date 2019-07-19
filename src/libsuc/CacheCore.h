@@ -149,6 +149,7 @@ public:
         return line;
     }
 
+    // *DTN: findLine should be very similar to findLine2Replace()
     CacheLine *findLine(Addr_t addr) {
         return findLinePrivate(addr);
     }
@@ -236,6 +237,7 @@ public:
         return (addr >> log2AddrLs);
     }
 
+    // *DTN: need this to check for any invalid lines in current tag's designated set
     uint32_t calcSet4Tag(Addr_t tag)     const {
         return (tag & maskSets);
     }

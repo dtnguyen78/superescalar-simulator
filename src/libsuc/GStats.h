@@ -110,6 +110,8 @@ public:
     }
     // TODO? (Volunteer wanted!)
     // change that for operator++()
+    //
+    // *DTN: use this to count line accesses/states in cache
     void inc() {
         data++;
     }
