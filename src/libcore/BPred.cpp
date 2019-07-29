@@ -562,11 +562,21 @@ PredType BPHybrid::predict(const Instruction *inst, InstID oracleID, bool doUpda
 {
   bpredEnergy->inc();
 
+  HistoryType iID = calcInstID(inst);
+  if (!(correct.count(iID)))
+  {
+	  // if not found, add instruction ID to map
+	  correct[iID] = 0;
+	  incorrect[iID] = 0;
+  }
+
   if( inst->isBranchTaken() )
-    return btb.predict(inst, oracleID, doUpdate);
+  {
+	  correct[iID]++;
+	  return btb.predict(inst, oracleID, doUpdate);
+  }
 
   bool taken = (inst->calcNextInstID() != oracleID);
-  HistoryType iID     = calcInstID(inst);
   HistoryType l2Index = ghr;
 
   // update historyTable statistics
@@ -605,9 +615,11 @@ PredType BPHybrid::predict(const Instruction *inst, InstID oracleID, bool doUpda
   if (taken != ptaken) {
     if (doUpdate)
       btb.updateOnly(inst,oracleID);
+    incorrect[iID]++;
     return MissPrediction;
   }
 
+  correct[iID]++;
   return ptaken ? btb.predict(inst, oracleID, doUpdate) : CorrectPrediction;
 }
 
@@ -624,6 +636,58 @@ void BPHybrid::switchIn(Pid_t pid)
 
 void BPHybrid::switchOut(Pid_t pid)
 {
+	int exe1to9, exe10to99, exe100to999, exe1000andup;
+	exe1to9 = exe10to99 = exe100to999 = exe1000andup = 0;
+
+	int exe1to9Hit, exe10to99Hit, exe100to999Hit, exe1000upHit;
+	exe1to9Hit = exe10to99Hit = exe100to999Hit = exe1000upHit = 0;
+
+	int exe1to9Miss, exe10to99Miss, exe100to999Miss, exe1000upMiss;
+	exe1to9Miss = exe10to99Miss = exe100to999Miss = exe1000upMiss = 0;
+
+	for (auto instID : correct)
+	{
+		int hit = instID.second;
+		int miss = incorrect[instID.first];
+		int count = hit + miss;
+
+		if (count < 10)
+		{
+			exe1to9++;
+			exe1to9Hit += hit;
+			exe1to9Miss += miss;
+		}
+		else if (count < 100)
+		{
+			exe10to99++;
+			exe10to99Hit += hit;
+			exe10to99Miss += miss;
+		}
+		else if (count < 1000)
+		{
+			exe100to999++;
+			exe100to999Hit += hit;
+			exe100to999Miss += miss;
+		}
+		else //1000+
+		{
+			exe1000andup++;
+			exe1000upHit += hit;
+			exe1000upMiss += miss;
+		}
+	}
+
+	std::cout << "1-9 completions: " << exe1to9 << std::endl;
+	std::cout << "10-99 completions: " << exe10to99 << std::endl;
+	std::cout << "100-999 completions: " << exe100to999 << std::endl;
+	std::cout << "1000+ completions: " << exe1000andup << std::endl;
+
+	std::cout << "Accuracy for 1-9: " << (float)exe1to9Hit/(float)(exe1to9Hit+exe1to9Miss) << std::endl;
+	std::cout << "Accuracy for 10-99: " << (float)exe10to99Hit/(float)(exe10to99Hit+exe10to99Miss) << std::endl;
+	std::cout << "Accuracy for 100-999: " << (float)exe100to999Hit/(float)(exe100to999Hit+exe100to999Miss) << std::endl;
+	std::cout << "Accuracy for 1000+: " << (float)exe1000upHit/(float)(exe1000upHit+exe1000upMiss) << std::endl;
+
+	
 #ifdef TASKSCALAR
   TaskContext *tc = TaskContext::getTaskContext(pid);
   if (tc==0 || tc->getPid()==-1)

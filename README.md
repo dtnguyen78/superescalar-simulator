@@ -2,7 +2,7 @@
 I am not a project member of SESC. This is a clone with some of my tweaks. Original unmodified source code can be found at http://sesc.sourceforge.net/.
 
 
-SESC is a CPU state simulator.
+SESC is a multiprocessor simulator.
 
 Key takeways for me:
 * Files in `src/confs` contain configurations for running simulations, including number of cores, cache size, block size, set associativity, etc.
