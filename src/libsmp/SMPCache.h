@@ -44,6 +44,11 @@ public:
   typedef CacheGeneric<SMPCacheState, PAddr, false>::CacheLine Line;
 
 private:
+  std::vector<PAddr> LRU_order; // keep track of LRU lines
+  std::vector<PAddr> compulsory; // cold cache tracking
+  //int nLines; // number of lines defined in config
+  std::map<PAddr, PAddr> cacheMap; // track previous LRU line
+
 protected:
   CacheType *cache;
 
@@ -89,6 +94,10 @@ protected:
 
   GStatsCntr invalDirty;
   GStatsCntr allocDirty;
+
+  GStatsCntr compMiss; // compulsory miss
+  GStatsCntr capMiss; // capacity miss
+  GStatsCntr confMiss; // conflict miss
 
 #ifdef SESC_ENERGY
   static unsigned cacheID;
@@ -190,6 +199,8 @@ public:
                          &SMPCache::doAllocateLine> doAllocateLineCB;
 
   PAddr calcTag(PAddr addr) { return cache->calcTag(addr); }
+
+  uint32_t calcSet4Addr(PAddr addr) { return cache->calcSet4Addr(addr); }
 
   // END protocol interface
 
