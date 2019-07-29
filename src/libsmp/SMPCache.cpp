@@ -207,7 +207,34 @@ void SMPCache::read(MemRequest *mreq)
 
 void countMisses(PAddr tag)
 {
-	//TODO
+	if (std::count(compulsory.begin(), compulsory.end(), tag) == 0)
+	{
+		compMiss.inc();
+		compulsory.push_back(tag);
+	}
+	else
+	{
+		if (cacheMap.find(tag) != cacheMap.end())
+			confMiss.inc();
+		else
+			capMiss.inc();
+	}
+
+	if (cacheMap.find(tag) == cacheMap.end()) // cache miss
+	{
+		if (LRU_order.size() == cache->getNumLines())
+		{
+			// evict LRU line
+			cacheMap.erase(LRU_order.front());
+			LRU_order.erase(LRU_order.begin());
+		}
+	}
+	else // cache hit
+	{
+		LRU_order.erase(std::find(LRU_order.begin(), LRU_order.end(), tag));
+	}
+	LRU_order.push_back(tag);
+	cacheMap[tag] = LRU_order.front();
 }
 
 void SMPCache::doRead(MemRequest *mreq)
