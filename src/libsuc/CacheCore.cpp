@@ -37,6 +37,7 @@ Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 
 #define k_RANDOM     "RANDOM"
 #define k_LRU        "LRU"
+#define k_NXLRU      "NXLRU"
 
 //
 // Class CacheGeneric, the combinational logic of Cache
@@ -187,7 +188,7 @@ CacheGeneric<State, Addr_t, Energy> *CacheGeneric<State, Addr_t, Energy>::create
      SescConf->isPower2(section, size) && 
      SescConf->isPower2(section, bsize) &&
      SescConf->isPower2(section, assoc) &&
-     SescConf->isInList(section, repl, k_RANDOM, k_LRU)) {
+     SescConf->isInList(section, repl, k_RANDOM, k_LRU, k_NXLRU)) {
 
     cache = create(s, a, b, u, pStr, sk);
   } else {
@@ -230,6 +231,8 @@ CacheAssoc<State, Addr_t, Energy>::CacheAssoc(int32_t size, int32_t assoc, int32
     policy = RANDOM;
   else if (strcasecmp(pStr, k_LRU)    == 0) 
     policy = LRU;
+  else if (strcasecmp(pStr, k_NXLRU) == 0)
+	  policy = NXLRU;
   else {
     MSG("Invalid cache policy [%s]",pStr);
     exit(0);
@@ -321,32 +324,79 @@ typename CacheAssoc<State, Addr_t, Energy>::Line
   Line **lineHit=0;
   Line **lineFree=0; // Order of preference, invalid, locked
   Line **setEnd = theSet + assoc;
+  Line **line1 = 0; // first line; for NXLRU only
+  Line **line2 = 0; // second line; for NXLRU only
   
   // Start in reverse order so that get the youngest invalid possible,
   // and the oldest isLocked possible (lineFree)
   {
     Line **l = setEnd -1;
-    while(l >= theSet) {
-      if ((*l)->getTag() == tag) {
-        lineHit = l;
-        break;
-      }
-      if (!(*l)->isValid())
-        lineFree = l;
-      else if (lineFree == 0 && !(*l)->isLocked())
-        lineFree = l;
 
-      // If line is invalid, isLocked must be false
-      GI(!(*l)->isValid(), !(*l)->isLocked()); 
-      l--;
+    // Implement NXLRU replacement policy
+    // 1. If there's no hit and no invalid lines to return, get the second line
+    // 2. If there's only 1 non-locked line, that line must be returned
+    // 3. If all lines are valid and locked, get second line
+    if (policy == NXLRU)
+    {
+	    // Create separate loop to avoid stalling during cache access
+	    // TODO: make this more efficient
+	    while (l >= theSet)
+	    {
+		    if ((*l)->getTag() == tag)
+		    {
+			    lineHit = l;
+			    break;
+		    }
+		    if (!(*l)->isValid())
+			    lineFree = l;
+		    	// line1 is actually lineFree
+		    else if (line1 == 0 && !(*l)->isLocked())
+			    line1 = l; // if only 1 non-locked line exists, line must be returned
+		    else if (line2 == 0 && line1 != 0 && !(*l)->isLocked())
+			    line2 = l; // if all lines are valid/locked, return second LRU line
+		    // If line is invalid, isLocked must be false
+		    GI(!(*l)->isValid(), !(*l)->isLocked());
+		    l--;
+	    }
+    }
+    else // regular LRU policy
+    {
+	    // lineFree acts like a flag. If lineFree == 0 when loop is done,
+	    // there are no invalid lines
+    	while(l >= theSet) {
+      		if ((*l)->getTag() == tag) {
+        	lineHit = l;
+        	break;
+      	}
+      	if (!(*l)->isValid())
+        	lineFree = l;
+      	else if (lineFree == 0 && !(*l)->isLocked())
+        	lineFree = l;
+
+      	// If line is invalid, isLocked must be false
+      	GI(!(*l)->isValid(), !(*l)->isLocked()); 
+      		l--;
+    	}
     }
   }
+
+  if (policy == NXLRU && lineFree == 0)
+  {
+	  if (line2 == 0)
+		  lineFree = line1;
+	  else // all lines are valid/locked
+		  lineFree = line2;
+  }
+
   GI(lineFree, !(*lineFree)->isValid() || !(*lineFree)->isLocked());
 
   if (lineHit)
     return *lineHit;
   
   I(lineHit==0);
+  // lineHit would already be returned before we even try to validate everything
+  // else. At this point, there was no hit, and we also already know whether
+  // we have no invalid lines.
 
   if(lineFree == 0 && !ignoreLocked)
     return 0;
@@ -356,8 +406,14 @@ typename CacheAssoc<State, Addr_t, Energy>::Line
     if (policy == RANDOM) {
       lineFree = &theSet[irand];
       irand = (irand + 1) & maskAssoc;
-    }else{
-      I(policy == LRU);
+    }
+    else if (policy == NXLRU)
+    {
+	    lineFree = setEnd-2; // find 2nd LRU line among non-locked lines;
+    }
+    else if (policy == LRU)
+    {
+      //I(policy == LRU);
       // Get the oldest line possible
       lineFree = setEnd-1;
     }
@@ -365,7 +421,10 @@ typename CacheAssoc<State, Addr_t, Energy>::Line
     if (policy == RANDOM && (*lineFree)->isValid()) {
       lineFree = &theSet[irand];
       irand = (irand + 1) & maskAssoc;
-    }else{
+    }
+    else if (policy == NXLRU && (*lineFree)->isValid())
+	    lineFree = setEnd-2;
+    else{
       //      I(policy == LRU);
       // Do nothing. lineFree is the oldest
     }
