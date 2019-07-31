@@ -95,9 +95,16 @@ protected:
   GStatsCntr invalDirty;
   GStatsCntr allocDirty;
 
-  GStatsCntr compMiss; // compulsory miss
-  GStatsCntr capMiss; // capacity miss
-  GStatsCntr confMiss; // conflict miss
+//  GStatsCntr compMiss; // compulsory miss
+//  GStatsCntr capMiss; // capacity miss
+//  GStatsCntr confMiss; // conflict miss
+
+  GStatsCntr readCompMiss;
+  GStatsCntr readReplMiss; // replacement miss = conflict and capacity misses
+  GStatsCntr readCoheMiss;
+  GStatsCntr writeCompMiss;
+  GStatsCntr writeReplMiss;
+  GStatsCntr writeCoheMiss;
 
 #ifdef SESC_ENERGY
   static unsigned cacheID;
@@ -201,6 +208,10 @@ public:
   PAddr calcTag(PAddr addr) { return cache->calcTag(addr); }
 
   uint32_t calcSet4Addr(PAddr addr) { return cache->calcSet4Addr(addr); }
+
+  uint32_t calcSet4Tag(PAddr tag) { return cache->calcSet4Tag(tag); }
+
+  uint32_t calcIndex4Addr(PAddr addr) { return cache->calcIndex4Addr(addr); }
 
   // END protocol interface
 

@@ -64,9 +64,15 @@ SMPCache::SMPCache(SMemorySystem *dms, const char *section, const char *name)
   , writeRetry("%s:writeRetry", name)
   , invalDirty("%s:invalDirty", name)
   , allocDirty("%s:allocDirty", name)
-  , compMiss("%s:compMiss", name)
-  , capMiss("%s:capMiss", name)
-  , confMiss("%s:confMiss", name)
+  , readCompMiss("%s:readCompMiss", name)
+  , readReplMiss("%s:readReplMiss", name)
+  , readCoheMiss("%s:readCoheMiss", name)
+  , writeCompMiss("%s:writeCompMiss", name)
+  , writeReplMiss("%s:writeReplMiss", name)
+  , writeCoheMiss("%s:writeCoheMiss", name)
+  //, compMiss("%s:compMiss", name)
+  //, capMiss("%s:capMiss", name)
+  //, confMiss("%s:confMiss", name)
 {
 	//nLines = SescConf->getInt(section,"size") / SescConf->getInt(section,"bsize");
 	
