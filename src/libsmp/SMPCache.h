@@ -95,16 +95,18 @@ protected:
   GStatsCntr invalDirty;
   GStatsCntr allocDirty;
 
-//  GStatsCntr compMiss; // compulsory miss
+  GStatsCntr compMiss; // compulsory miss
+  GStatsCntr coheMiss;
+  GStatsCntr replMiss;
 //  GStatsCntr capMiss; // capacity miss
 //  GStatsCntr confMiss; // conflict miss
 
-  GStatsCntr readCompMiss;
-  GStatsCntr readReplMiss; // replacement miss = conflict and capacity misses
-  GStatsCntr readCoheMiss;
-  GStatsCntr writeCompMiss;
-  GStatsCntr writeReplMiss;
-  GStatsCntr writeCoheMiss;
+//  GStatsCntr readCompMiss;
+//  GStatsCntr readReplMiss; // replacement miss = conflict and capacity misses
+//  GStatsCntr readCoheMiss;
+//  GStatsCntr writeCompMiss;
+//  GStatsCntr writeReplMiss;
+//  GStatsCntr writeCoheMiss;
 
 #ifdef SESC_ENERGY
   static unsigned cacheID;

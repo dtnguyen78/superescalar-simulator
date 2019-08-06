@@ -211,36 +211,40 @@ void SMPCache::read(MemRequest *mreq)
   doReadCB::scheduleAbs(nextSlot(), this, mreq);
 }
 
-void countMisses(PAddr tag)
+// Calculate different types of misses
+void countMisses(PAddr tag, Line *l)
 {
-	if (std::count(compulsory.begin(), compulsory.end(), tag) == 0)
+	auto i = cache->calcIndex4Set(calcSet4Tag(tag));
+	auto nLines = cache->getNumLines() / cache->getNumSets();
+	int counter = 0;
+	int prevInv = 0;
+
+	// Calculate coherence misses due to invalidation.
+	// Check only the lines in the set to find any invalid lines
+	// and if the given tag matches the line's previous tag.
+	// Use this for both read and write coherence misses.
+	while (counter < nLines)
+	{
+		Line *l = cache->getPLine(i);
+		if (l && !l->isValid() && (l->getPreviousTag() == tag))
+			prevInv++;
+		counter++;
+		i++;
+	}
+
+	if (std::find(compulsory.begin(), compulsory.end(), tag) == compulsory.end())
 	{
 		compMiss.inc();
 		compulsory.push_back(tag);
 	}
+	else if (prevInv || (l && l->getState() == DMESI_SHARED))
+	{
+		coheMiss.inc();
+	}
 	else
 	{
-		if (cacheMap.find(tag) != cacheMap.end())
-			confMiss.inc();
-		else
-			capMiss.inc();
+		replMiss.inc();
 	}
-
-	if (cacheMap.find(tag) == cacheMap.end()) // cache miss
-	{
-		if (LRU_order.size() == cache->getNumLines())
-		{
-			// evict LRU line
-			cacheMap.erase(LRU_order.front());
-			LRU_order.erase(LRU_order.begin());
-		}
-	}
-	else // cache hit
-	{
-		LRU_order.erase(std::find(LRU_order.begin(), LRU_order.end(), tag));
-	}
-	LRU_order.push_back(tag);
-	cacheMap[tag] = LRU_order.front();
 }
 
 void SMPCache::doRead(MemRequest *mreq)
@@ -299,7 +303,7 @@ void SMPCache::doRead(MemRequest *mreq)
 
   readMiss.inc();
 
-  countMisses(tag);
+  countMisses(tag, l);
 
 #ifdef SESC_ENERGY
   rdEnergy[1]->inc();
@@ -400,7 +404,7 @@ void SMPCache::doWrite(MemRequest *mreq)
 
   writeMiss.inc();
 
-  countMisses(tag);
+  countMisses(tag, l);
 
 #ifdef SESC_ENERGY
   wrEnergy[1]->inc();
